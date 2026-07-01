@@ -20,13 +20,47 @@ return {
         end,
       })
 
-      -- <C-t>: always open a brand-new terminal in a right-hand vertical split
-      -- (creates a fresh one each press, even if terminals already exist).
-      local Terminal = require("toggleterm.terminal").Terminal
+      -- Right-side terminals behave like IDE tabs: each one is a full-height
+      -- vertical split, and only one is visible at a time. Opening or switching
+      -- hides the others instead of stacking them.
+      local termmod = require("toggleterm.terminal")
+      local Terminal = termmod.Terminal
+
+      -- Show `term` full-height on the right, hiding every other open terminal.
+      local function focus_only(term)
+        for _, t in ipairs(termmod.get_all(true)) do
+          if t.id ~= term.id and t:is_open() then
+            t:close()
+          end
+        end
+        if term:is_open() then
+          local win = vim.fn.bufwinid(term.bufnr)
+          if win ~= -1 then vim.api.nvim_set_current_win(win) end
+        else
+          term:open()
+        end
+      end
+
+      -- <C-t>: open a brand-new full-height terminal (hides the current one).
       local function new_right_terminal()
-        Terminal:new({ direction = "vertical" }):open()
+        focus_only(Terminal:new({ direction = "vertical" }))
       end
       vim.keymap.set("n", "<C-t>", new_right_terminal, { desc = "Terminal: new (right split)" })
+
+      -- ]t / [t: switch to the next / previous terminal, keeping it full-height.
+      local function cycle_terminal(step)
+        local all = termmod.get_all(true)
+        if #all == 0 then
+          return new_right_terminal()
+        end
+        local idx = 1
+        for i, t in ipairs(all) do
+          if t:is_open() then idx = i break end
+        end
+        focus_only(all[((idx - 1 + step) % #all) + 1])
+      end
+      vim.keymap.set("n", "]t", function() cycle_terminal(1) end, { desc = "Terminal: next" })
+      vim.keymap.set("n", "[t", function() cycle_terminal(-1) end, { desc = "Terminal: previous" })
 
       -- in terminal mode: <C-\> toggles, <Esc> exits, movement + new-terminal keys
       vim.api.nvim_create_autocmd("TermOpen", {
