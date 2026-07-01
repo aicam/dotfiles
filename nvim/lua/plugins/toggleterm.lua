@@ -67,20 +67,26 @@ return {
       -- Works in ANY terminal window (toggleterm, Claude Code, ...). Ctrl+= /
       -- Ctrl+- without Shift are Ghostty's font zoom, so we use Shift. Width
       -- only; the terminal is already full height.
-      local function term_resize(mode)
+      -- Snapshot of the whole window layout, taken when a terminal is expanded
+      -- to full screen, so docking restores the sidebar/editor exactly as they
+      -- were (a plain resize would leave the squished sidebar collapsed).
+      local saved_layout
+      local function term_fullscreen()
         if vim.bo.buftype ~= "terminal" then return end
-        local width
-        if mode == "full" then
-          width = vim.o.columns
-        else
-          -- restore each terminal's own default share (Claude uses 30%).
-          local frac = vim.api.nvim_buf_get_name(0):match("claude") and 0.30 or 0.40
-          width = math.floor(vim.o.columns * frac)
-        end
-        vim.cmd("vertical resize " .. width)
+        saved_layout = vim.fn.winrestcmd()
+        vim.cmd("vertical resize " .. vim.o.columns)
       end
-      local function term_fullscreen() term_resize("full") end
-      local function term_dock_right() term_resize("dock") end
+      local function term_dock_right()
+        if vim.bo.buftype ~= "terminal" then return end
+        if saved_layout then
+          vim.cmd(saved_layout) -- restore the pre-fullscreen layout (sidebar included)
+          saved_layout = nil
+        else
+          -- no snapshot (docked without first going full): each terminal's default
+          local frac = vim.api.nvim_buf_get_name(0):match("claude") and 0.30 or 0.40
+          vim.cmd("vertical resize " .. math.floor(vim.o.columns * frac))
+        end
+      end
       -- Register globally so every terminal (incl. Claude Code) gets them. The
       -- guard above makes them a no-op outside a terminal window. Extra symbol
       -- variants cover how different terminals report the shifted keys.
