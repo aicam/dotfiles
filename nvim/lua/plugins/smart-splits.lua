@@ -8,10 +8,12 @@ return {
       multiplexer_integration = false,
     },
     keys = {
-      { "<C-h>", function() require("smart-splits").move_cursor_left() end, desc = "Move to split/pane left" },
+      { "<C-l>", function() require("smart-splits").move_cursor_left() end, desc = "Move to split/pane left" },
+      { "<C-r>", function() require("smart-splits").move_cursor_right() end, desc = "Move to split/pane right" },
       { "<C-j>", function() require("smart-splits").move_cursor_down() end, desc = "Move to split/pane below" },
       { "<C-k>", function() require("smart-splits").move_cursor_up() end, desc = "Move to split/pane above" },
-      { "<C-l>", function() require("smart-splits").move_cursor_right() end, desc = "Move to split/pane right" },
+      -- <C-h> kept as an alias for "move left" (matches the <C-l> above)
+      { "<C-h>", function() require("smart-splits").move_cursor_left() end, desc = "Move to split/pane left" },
     },
   },
 }
