@@ -1,6 +1,6 @@
-# Open new terminals in the Projects folder instead of inheriting the
-# launcher's directory (which was landing in Projects/Texera_Bench).
-working-directory = /home/matthew/Projects
+# Open new terminals in the projects folder instead of inheriting the
+# launcher's directory.
+working-directory = /home/ali/IdeaProjects
 
 # Ghostty config — matches the previous wezterm look.
 # Ghostty is a GTK4/libadwaita app, so GNOME draws its native title bar
@@ -13,8 +13,9 @@ font-family = "JetBrains Mono"
 font-size = 13
 background-opacity = 0.9
 
-# No tab bar (also removes the new-tab "+" button).
-window-show-tab-bar = never
+# Show the tab bar when there's more than one tab (so per-tab repo · branch
+# titles are visible). Use "always" to always show it, "never" to hide it.
+window-show-tab-bar = auto
 
 # Let the shell set the window title (see ~/.bashrc.d/ghostty-title.sh, which
 # shows the git branch). Without this, Ghostty's own integration overrides the
