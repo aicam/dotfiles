@@ -62,6 +62,17 @@ return {
       vim.keymap.set("n", "]t", function() cycle_terminal(1) end, { desc = "Terminal: next" })
       vim.keymap.set("n", "[t", function() cycle_terminal(-1) end, { desc = "Terminal: previous" })
 
+      -- <C-=>/<C-+>: expand the terminal to (nearly) full screen.
+      -- <C-->      : snap it back to the default right-hand ~40% column.
+      -- (width only; the terminal is already full height.)
+      local function term_resize(width)
+        if vim.bo.filetype == "toggleterm" then
+          vim.cmd("vertical resize " .. width)
+        end
+      end
+      local function term_fullscreen() term_resize(vim.o.columns) end
+      local function term_dock_right() term_resize(math.floor(vim.o.columns * 0.4)) end
+
       -- in terminal mode: <C-\> toggles, <Esc> exits, movement + new-terminal keys
       vim.api.nvim_create_autocmd("TermOpen", {
         pattern = "term://*toggleterm#*",
@@ -79,6 +90,12 @@ return {
           vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], opts)
           -- open another terminal on the right from inside a terminal
           vim.keymap.set("t", "<C-t>", function() new_right_terminal() end, opts)
+          -- resize: <C-=>/<C-+> full screen, <C--> back to the right column
+          for _, m in ipairs({ "t", "n" }) do
+            vim.keymap.set(m, "<C-=>", term_fullscreen, opts)
+            vim.keymap.set(m, "<C-+>", term_fullscreen, opts)
+            vim.keymap.set(m, "<C-->", term_dock_right, opts)
+          end
         end,
       })
     end,
