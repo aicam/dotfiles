@@ -88,3 +88,16 @@ vim.api.nvim_create_autocmd({ "DirChanged", "FocusGained" }, {
     repo_cache, branch_cache = {}, {}
   end,
 })
+
+-- Terminal/tab title: emit "repo · branch" so multiplexer tabs (WezTerm, tmux,
+-- Ghostty, ...) show it instead of user@host. Falls back to the cwd name when
+-- there's no git repo.
+function _G.statusline_title()
+  local git = _G.statusline_git()
+  if git ~= "" then return git end
+  local cwd = vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
+  return cwd ~= "" and cwd or "nvim"
+end
+
+vim.opt.title = true
+vim.opt.titlestring = "%{v:lua.statusline_title()}"
