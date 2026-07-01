@@ -63,16 +63,33 @@ return {
       vim.keymap.set("n", "[t", function() cycle_terminal(-1) end, { desc = "Terminal: previous" })
 
       -- <C-S-=>/<C-S-+>: expand the terminal to (nearly) full screen.
-      -- <C-S-->        : snap it back to the default right-hand ~40% column.
-      -- (Ctrl+= / Ctrl+- without Shift are Ghostty's font zoom, so we use Shift.
-      --  width only; the terminal is already full height.)
-      local function term_resize(width)
-        if vim.bo.filetype == "toggleterm" then
-          vim.cmd("vertical resize " .. width)
+      -- <C-S-->        : snap it back to its default right-hand column.
+      -- Works in ANY terminal window (toggleterm, Claude Code, ...). Ctrl+= /
+      -- Ctrl+- without Shift are Ghostty's font zoom, so we use Shift. Width
+      -- only; the terminal is already full height.
+      local function term_resize(mode)
+        if vim.bo.buftype ~= "terminal" then return end
+        local width
+        if mode == "full" then
+          width = vim.o.columns
+        else
+          -- restore each terminal's own default share (Claude uses 30%).
+          local frac = vim.api.nvim_buf_get_name(0):match("claude") and 0.30 or 0.40
+          width = math.floor(vim.o.columns * frac)
         end
+        vim.cmd("vertical resize " .. width)
       end
-      local function term_fullscreen() term_resize(vim.o.columns) end
-      local function term_dock_right() term_resize(math.floor(vim.o.columns * 0.4)) end
+      local function term_fullscreen() term_resize("full") end
+      local function term_dock_right() term_resize("dock") end
+      -- Register globally so every terminal (incl. Claude Code) gets them. The
+      -- guard above makes them a no-op outside a terminal window. Extra symbol
+      -- variants cover how different terminals report the shifted keys.
+      for _, m in ipairs({ "t", "n" }) do
+        vim.keymap.set(m, "<C-S-=>", term_fullscreen, { desc = "Terminal: full screen" })
+        vim.keymap.set(m, "<C-S-+>", term_fullscreen, { desc = "Terminal: full screen" })
+        vim.keymap.set(m, "<C-S-->", term_dock_right, { desc = "Terminal: dock right" })
+        vim.keymap.set(m, "<C-S-_>", term_dock_right, { desc = "Terminal: dock right" })
+      end
 
       -- in terminal mode: <C-\> toggles, <Esc> exits, movement + new-terminal keys
       vim.api.nvim_create_autocmd("TermOpen", {
@@ -91,15 +108,6 @@ return {
           vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], opts)
           -- open another terminal on the right from inside a terminal
           vim.keymap.set("t", "<C-t>", function() new_right_terminal() end, opts)
-          -- resize: <C-S-=>/<C-S-+> full screen, <C-S--> back to the right column
-          -- (Shift avoids Ghostty's Ctrl+= / Ctrl+- font zoom). Extra symbol
-          -- variants cover how terminals report the shifted keys.
-          for _, m in ipairs({ "t", "n" }) do
-            vim.keymap.set(m, "<C-S-=>", term_fullscreen, opts)
-            vim.keymap.set(m, "<C-S-+>", term_fullscreen, opts)
-            vim.keymap.set(m, "<C-S-->", term_dock_right, opts)
-            vim.keymap.set(m, "<C-S-_>", term_dock_right, opts)
-          end
         end,
       })
     end,
