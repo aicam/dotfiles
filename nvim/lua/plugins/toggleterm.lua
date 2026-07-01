@@ -35,9 +35,11 @@ return {
           local opts = { buffer = 0 }
           vim.keymap.set("t", "<C-\\>", [[<Cmd>ToggleTerm<CR>]], opts)
           vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]], opts)
-          -- window movement: <C-l> left, <C-r> right (matches smart-splits)
+          -- window movement: <C-l> left, <C-i> right (matches smart-splits).
+          -- <C-r> is left alone so it keeps its normal meaning (shell reverse
+          -- search in the terminal; redo in the editor).
           vim.keymap.set("t", "<C-l>", [[<C-\><C-n><C-w>h]], opts)
-          vim.keymap.set("t", "<C-r>", [[<C-\><C-n><C-w>l]], opts)
+          vim.keymap.set("t", "<C-i>", [[<C-\><C-n><C-w>l]], opts)
           vim.keymap.set("t", "<C-h>", [[<C-\><C-n><C-w>h]], opts)
           vim.keymap.set("t", "<C-j>", [[<C-\><C-n><C-w>j]], opts)
           vim.keymap.set("t", "<C-k>", [[<C-\><C-n><C-w>k]], opts)
