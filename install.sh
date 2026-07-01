@@ -64,7 +64,6 @@ declare -A PKGMAP=(
     [go]="dnf:golang apt:golang-go pacman:go zypper:go apk:go"
     [gh]="dnf:gh apt:gh pacman:github-cli zypper:gh apk:github-cli"
     [jq]="dnf:jq apt:jq pacman:jq zypper:jq apk:jq"
-    [lazygit]="dnf:lazygit pacman:lazygit zypper:lazygit apk:lazygit"
     [gcc]="dnf:gcc apt:gcc pacman:gcc zypper:gcc apk:gcc"
     [gpp]="dnf:gcc-c++ apt:g++ pacman:gcc zypper:gcc-c++ apk:g++"
     [make]="dnf:make apt:make pacman:make zypper:make apk:make"
@@ -183,6 +182,48 @@ ensure_neovim() {
     nvim_ok || echo "  WARNING: Neovim is still older than $NVIM_MIN_VERSION - the config may not load. See https://github.com/neovim/neovim/releases"
 }
 
+# ---------------------------------------------------------------------------
+# lazygit: the git TUI opened from Neovim with <leader>gg
+# ---------------------------------------------------------------------------
+# Many distros (notably Ubuntu/apt) don't package lazygit, so install its
+# static release binary into ~/.local/bin when it's missing. Best-effort.
+ensure_lazygit() {
+    if command -v lazygit > /dev/null 2>&1; then
+        echo "lazygit already installed."
+        return 0
+    fi
+    local arch lg_arch ver tmp
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64|amd64)  lg_arch="x86_64" ;;
+        aarch64|arm64) lg_arch="arm64" ;;
+        *) echo "  no lazygit release build for arch '$arch' - install it manually."; return 1 ;;
+    esac
+    local dl
+    if command -v curl > /dev/null 2>&1; then
+        dl() { curl -fsSL "$1" -o "$2"; }
+        ver="$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | grep -oP '"tag_name":\s*"v\K[^"]+')"
+    elif command -v wget > /dev/null 2>&1; then
+        dl() { wget -qO "$2" "$1"; }
+        ver="$(wget -qO- https://api.github.com/repos/jesseduffield/lazygit/releases/latest | grep -oP '"tag_name":\s*"v\K[^"]+')"
+    else
+        echo "  need curl or wget to install lazygit."
+        return 1
+    fi
+    [ -n "$ver" ] || { echo "  couldn't determine the latest lazygit version."; return 1; }
+    echo "Installing lazygit $ver..."
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' RETURN
+    if dl "https://github.com/jesseduffield/lazygit/releases/download/v${ver}/lazygit_${ver}_Linux_${lg_arch}.tar.gz" "$tmp/lg.tar.gz" \
+        && tar -xzf "$tmp/lg.tar.gz" -C "$tmp" lazygit; then
+        install -m755 "$tmp/lazygit" "$HOME/.local/bin/lazygit"
+        echo "  installed lazygit to ~/.local/bin/lazygit"
+    else
+        echo "  lazygit download failed - install manually: https://github.com/jesseduffield/lazygit/releases"
+        return 1
+    fi
+}
+
 echo "--- Installing packages (manager: ${PM:-none}) ---"
 # Runtime deps as "command:generic-package" pairs; installed only if the command
 # is missing. Failures are reported, never fatal.
@@ -196,7 +237,6 @@ TOOLS=(
     "go:go"
     "gh:gh"
     "jq:jq"
-    "lazygit:lazygit"
     "cc:gcc"
     "g++:gpp"
     "make:make"
@@ -287,6 +327,9 @@ fi
 
 echo "--- Installing Neovim ---"
 ensure_neovim
+
+echo "--- Installing lazygit ---"
+ensure_lazygit
 
 echo "--- Configuring Neovim ---"
 create_symlink "$DIR/nvim" "$HOME/.config/nvim"
