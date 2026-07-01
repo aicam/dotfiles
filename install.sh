@@ -98,11 +98,95 @@ pkg_install() {
     esac
 }
 
+# ---------------------------------------------------------------------------
+# Neovim: guarantee a modern version (our config needs >= 0.9)
+# ---------------------------------------------------------------------------
+# Distro packages are often far too old - notably Ubuntu LTS ships Neovim 0.6,
+# which lacks nvim_create_autocmd (0.7+) and can't run lazy.nvim (0.8+), so
+# `nvim .` crashes on our config. When the available nvim is missing or stale we
+# install the official prebuilt release into ~/.local (no sudo, takes PATH
+# precedence over any system nvim via the ~/.local/bin loader added below).
+NVIM_MIN_VERSION="0.9.0"
+
+# version_ge <have> <want> -> true if have >= want (dotted numeric compare).
+version_ge() {
+    [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+# nvim_ok -> true if an nvim on PATH satisfies NVIM_MIN_VERSION.
+nvim_ok() {
+    command -v nvim > /dev/null 2>&1 || return 1
+    local v
+    v="$(nvim --version 2>/dev/null | sed -n '1s/^NVIM v//p')"
+    [ -n "$v" ] || return 1
+    version_ge "${v%%-*}" "$NVIM_MIN_VERSION"
+}
+
+# install_neovim_release -> download the official stable tarball into ~/.local.
+install_neovim_release() {
+    local arch asset assets url tmp dl
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64|amd64) assets="nvim-linux-x86_64.tar.gz nvim-linux64.tar.gz" ;;
+        aarch64|arm64) assets="nvim-linux-arm64.tar.gz" ;;
+        *) echo "  no Neovim release build for arch '$arch' - install it manually."; return 1 ;;
+    esac
+
+    if command -v curl > /dev/null 2>&1; then
+        dl() { curl -fsSL "$1" -o "$2"; }
+    elif command -v wget > /dev/null 2>&1; then
+        dl() { wget -qO "$2" "$1"; }
+    else
+        echo "  need curl or wget to download Neovim - install one, then re-run."
+        return 1
+    fi
+
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' RETURN
+    for asset in $assets; do
+        url="https://github.com/neovim/neovim/releases/download/stable/$asset"
+        echo "  downloading $url ..."
+        if dl "$url" "$tmp/nvim.tar.gz"; then
+            if tar -xzf "$tmp/nvim.tar.gz" -C "$tmp"; then
+                local extracted
+                extracted="$(find "$tmp" -maxdepth 1 -type d -name 'nvim-*' | head -n1)"
+                if [ -n "$extracted" ] && [ -x "$extracted/bin/nvim" ]; then
+                    rm -rf "$HOME/.local/nvim"
+                    mv "$extracted" "$HOME/.local/nvim"
+                    create_symlink "$HOME/.local/nvim/bin/nvim" "$HOME/.local/bin/nvim"
+                    echo "  installed Neovim to ~/.local/nvim (linked into ~/.local/bin)."
+                    return 0
+                fi
+            fi
+        fi
+    done
+    echo "  failed to download/extract a Neovim release."
+    return 1
+}
+
+# ensure_neovim -> make sure a modern nvim is available, best-effort.
+ensure_neovim() {
+    if nvim_ok; then
+        echo "Neovim $(nvim --version | sed -n '1s/^NVIM v//p') already installed."
+        return 0
+    fi
+    if command -v nvim > /dev/null 2>&1; then
+        echo "Neovim $(nvim --version | sed -n '1s/^NVIM v//p') is too old (need >= $NVIM_MIN_VERSION) - installing an official release..."
+    else
+        echo "Neovim not found - installing an official release..."
+    fi
+    install_neovim_release || {
+        echo "  (release install failed) trying the $PMKEY package as a fallback..."
+        p="$(pkg_name neovim)"
+        [ -n "$p" ] && pkg_install "$p" || true
+    }
+    nvim_ok || echo "  WARNING: Neovim is still older than $NVIM_MIN_VERSION - the config may not load. See https://github.com/neovim/neovim/releases"
+}
+
 echo "--- Installing packages (manager: ${PM:-none}) ---"
 # Runtime deps as "command:generic-package" pairs; installed only if the command
 # is missing. Failures are reported, never fatal.
 TOOLS=(
-    "nvim:neovim"
     "magick:imagemagick"
     "ffmpeg:ffmpeg"
     "rg:ripgrep"
@@ -200,6 +284,9 @@ if [ -d "$DIR/claude/skills" ]; then
         create_symlink "${skill%/}" "$HOME/.claude/skills/$name"
     done
 fi
+
+echo "--- Installing Neovim ---"
+ensure_neovim
 
 echo "--- Configuring Neovim ---"
 create_symlink "$DIR/nvim" "$HOME/.config/nvim"
